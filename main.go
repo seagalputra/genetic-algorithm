@@ -3,9 +3,10 @@ package main
 import (
 	"fmt"
 	"math/rand"
+	"os"
+	"os/exec"
 	"sort"
 	"strings"
-	"time"
 )
 
 type Chromosome struct {
@@ -18,6 +19,12 @@ const MAX_ASCII int32 = 126
 
 func randomChar() byte {
 	return byte(rand.Int31n(MAX_ASCII-MIN_ASCII+1) + MIN_ASCII)
+}
+
+func rank(population []Chromosome) {
+	sort.Slice(population, func(i, j int) bool {
+		return population[i].Fitness > population[j].Fitness
+	})
 }
 
 // Genetic is a function to create genetic representation of data
@@ -66,14 +73,13 @@ func CreatePopulation(target string, size int) []Chromosome {
 	return population
 }
 
+// Selection
 func Selection(population []Chromosome) (Chromosome, Chromosome) {
-	sort.Slice(population, func(i, j int) bool {
-		return population[i].Fitness > population[j].Fitness
-	})
-
+	rank(population)
 	return population[0], population[1]
 }
 
+// Crossover
 func Crossover(first Chromosome, second Chromosome) (Chromosome, Chromosome) {
 	var firstChild string = first.Gen
 	var secondChild string = second.Gen
@@ -101,31 +107,54 @@ func Mutate(in Chromosome, rate float32) Chromosome {
 	return out
 }
 
+func Regeneration(ch []Chromosome, p []Chromosome) []Chromosome {
+	rePopulate := make([]Chromosome, len(p))
+	copy(rePopulate, p)
+
+	rePopulate[len(rePopulate)-1] = ch[1]
+	rePopulate[len(rePopulate)-2] = ch[0]
+
+	return rePopulate
+}
+
+func clear() {
+	cmd := exec.Command("clear")
+	cmd.Stdout = os.Stdout
+	cmd.Run()
+}
+
 func main() {
-	rand.Seed(time.Now().UnixNano())
+	var target string = "nada"
 
-	var target string
-	target = "wiro sableng"
+	var populationSize int = 100
+	var mutationRate float32 = 0.3
+	population := CreatePopulation(target, populationSize)
+	isLoop := true
+	i := 0
+	for isLoop {
+		firstParent, secondParent := Selection(population)
 
-	size := 10
-	population := CreatePopulation(target, size)
-	firstParent, secondParent := Selection(population)
+		firstChild, secondChild := Crossover(firstParent, secondParent)
+		firstMutant := Mutate(firstChild, mutationRate)
+		secondMutant := Mutate(secondChild, mutationRate)
+		firstMutant.Fitness = CalcFitness(firstMutant.Gen, target)
+		secondMutant.Fitness = CalcFitness(secondMutant.Gen, target)
 
-	firstChild, secondChild := Crossover(firstParent, secondParent)
-	// Mutation
-	var mutationRate float32 = 0.5
-	firstMutant := Mutate(firstChild, mutationRate)
-	secondMutant := Mutate(secondChild, mutationRate)
+		children := []Chromosome{firstMutant, secondMutant}
+		population = Regeneration(children, population)
 
-	fmt.Println("Parent : ")
-	fmt.Println(firstParent)
-	fmt.Println(secondParent)
-
-	fmt.Println("Child : ")
-	fmt.Println(firstChild)
-	fmt.Println(secondChild)
-
-	fmt.Println("Mutation : ")
-	fmt.Println(firstMutant)
-	fmt.Println(secondMutant)
+		if first, _ := Selection(population); first.Fitness == 100 {
+			fmt.Printf("Iteration : %d\n", i)
+			fmt.Printf("Gen       : %s\n", first.Gen)
+			fmt.Printf("Fitness   : %.3f\n", first.Fitness)
+			isLoop = false
+		} else {
+			fmt.Printf("Iteration : %d\n", i)
+			fmt.Printf("Gen       : %s\n", first.Gen)
+			fmt.Printf("Fitness   : %.3f\n", first.Fitness)
+			clear()
+			i++
+			isLoop = true
+		}
+	}
 }
